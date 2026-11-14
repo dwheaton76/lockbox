@@ -24,7 +24,12 @@ npm run preview   # serve the build (service worker enabled)
 - Windows may ask you to allow Node through the firewall. Allow it for private networks.
 - This is for testing only. The vault lives on the phone, and offline/install support won't work with a self-signed cert.
 
-**Daily use.** Deploy `dist/` to any static HTTPS host (Cloudflare Pages, Netlify, Vercel, GitHub Pages). Open the site on your phone, then install it:
+**Daily use.** The app is published with **GitHub Pages** at **https://dwheaton76.github.io/lockbox/**. Every push to `main` runs `.github/workflows/deploy.yml`, which type-checks, runs the tests, builds and publishes.
+- The workflow builds with `BASE_PATH=/<repo>/`, so the app works in a sub-folder.
+- The Google client ID comes from the repository variable `VITE_GOOGLE_CLIENT_ID` (Settings → Secrets and variables → Actions → Variables).
+- For Drive sync, the Google OAuth client also needs the origin `https://dwheaton76.github.io` and the redirect URI `https://dwheaton76.github.io/lockbox/oauth-callback.html`.
+
+Any other static HTTPS host works too; build with `npm run build` and upload `dist/`. Open the site on your phone, then install it:
 - iPhone (Safari): Share → **Add to Home Screen**
 - Android (Chrome): ⋮ → **Install app**
 
