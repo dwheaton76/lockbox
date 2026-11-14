@@ -44,10 +44,10 @@ export function parseBackup(text: string): BackupFile | null {
 }
 
 /** Derives the file's key from a password. Throws on unreasonable KDF settings. */
-export async function backupKey(file: BackupFile, password: string): Promise<CryptoKey> {
+export async function backupKey(file: BackupFile, password: string, extractable = false): Promise<CryptoKey> {
   const { salt, iterations } = file.kdf;
   if (iterations < 1 || iterations > MAX_ITERATIONS) throw new Error('This backup uses unsupported settings.');
-  return deriveKey(password, fromB64(salt), iterations);
+  return deriveKey(password, fromB64(salt), iterations, extractable);
 }
 
 /** Resolves null if the key doesn't match. */

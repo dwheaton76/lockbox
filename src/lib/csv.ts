@@ -98,8 +98,7 @@ export function importCsv(text: string, existing: Entry[] = []): CsvImportResult
     entry.notes = get('notes');
     entry.tags = get('tags').split(',').map((t) => t.trim()).filter(Boolean);
     entry.favorite = ['1', 'true', 'yes'].includes(get('favorite').toLowerCase());
-    const totp = get('totp');
-    if (totp) entry.custom.push({ id: crypto.randomUUID(), label: 'TOTP secret', value: totp, secret: true });
+    entry.totp = get('totp');
 
     const key = loginKey(entry)!;
     if (seen.has(key)) {

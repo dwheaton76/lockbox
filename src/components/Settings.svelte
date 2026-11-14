@@ -8,6 +8,7 @@
   import type { Entry } from '../lib/types';
   import Icon from './Icon.svelte';
   import DriveSyncPanel from './DriveSyncPanel.svelte';
+  import BiometricPanel from './BiometricPanel.svelte';
 
   let { onclose }: { onclose: () => void } = $props();
 
@@ -32,9 +33,10 @@
 
     pwBusy = true;
     try {
+      const hadBiometric = vault.biometric;
       if (await vault.changeMasterPassword(current, next)) {
         current = next = confirmNext = '';
-        toast.show('Master password changed');
+        toast.show(hadBiometric ? 'Master password changed · turn fingerprint unlock back on below' : 'Master password changed', 4000);
       } else {
         pwError = 'Current master password is incorrect.';
       }
@@ -147,6 +149,7 @@
 
   <div class="sheet-body">
     <DriveSyncPanel />
+    <BiometricPanel />
 
     <!-- Import -->
     <section>

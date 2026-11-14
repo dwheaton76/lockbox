@@ -18,8 +18,8 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: npm
@@ -30,10 +30,10 @@ jobs:
         env:
           # Served from https://<user>.github.io/<repo>/
           BASE_PATH: /${{ github.event.repository.name }}/
-          # Repository variable (Settings → Secrets and variables → Actions → Variables).
+          # Repository variable (Settings â†’ Secrets and variables â†’ Actions â†’ Variables).
           # Not a secret: an OAuth client ID is public by design and ends up in the built JS.
           VITE_GOOGLE_CLIENT_ID: ${{ vars.VITE_GOOGLE_CLIENT_ID }}
-      - uses: actions/upload-pages-artifact@v3
+      - uses: actions/upload-pages-artifact@v5
         with:
           path: dist
 
@@ -45,4 +45,4 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5

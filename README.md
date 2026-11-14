@@ -89,6 +89,12 @@ Each sync downloads the encrypted vault file from Google Drive, merges it with t
 - **Google Drive sync** of the encrypted vault (see above).
 - **Encrypted backup** export/import. A backup opens with the master password in use when it was exported. Importing merges by id, so nothing is duplicated and newer edits win.
 - **Change master password.** The vault is re-encrypted with a fresh salt. The vault and its key settings are written in a single IndexedDB transaction, so an interrupted change can't lock you out.
+- **2FA codes.** Password and Account items have a 2FA secret field. It takes the setup key a site shows (base32), or an `otpauth://` link. Expanded cards show the live 6-digit code with a countdown and a copy button (RFC 6238; SHA-1/256/512, 6–10 digits, any period). Secrets brought in by CSV import go straight into this field. Older imports that saved them as a custom field are recognised too.
+- **Fingerprint / Face ID unlock** (Settings), per device, using WebAuthn's PRF extension:
+  - Turning it on creates a "Lockbox vault unlock" passkey on the device. After a successful fingerprint, face or device-PIN check, that credential yields a secret only this device can produce.
+  - That secret, stretched with HKDF, encrypts a copy of the vault key, which stays in this device's storage. No server is involved.
+  - Changing the master password, or switching to the Drive vault's password, turns it off until you turn it on again.
+  - It needs a browser and authenticator with PRF support, e.g. Chrome on Android, or Safari on iOS/macOS 18+. Windows Hello support depends on the browser and Windows version. Lockbox shows a clear message when it isn't available.
 - **Auto-lock** after 5 minutes of inactivity, or 60 seconds after the app goes to the background. The background check uses elapsed time, so it still works when a phone suspends timers. An overdue clipboard clear also runs when the app comes back.
 - **Mobile-first UI.** Bottom-sheet dialogs, safe-area insets, 44px touch targets, light and dark themes, purple/teal gradient design.
 
@@ -110,9 +116,11 @@ src/
     generator.ts       password / API key / passkey generators
     search.ts          query matching & sorting
     clipboard.ts       copy with auto-clear, paste
+    totp.ts            2FA codes (RFC 6238), base32 + otpauth:// parsing
+    biometric.ts       fingerprint / Face ID unlock (WebAuthn PRF key wrapping)
     *.test.ts          Vitest unit tests (vault tests use fake-indexeddb)
   components/          Unlock, VaultView, EntryCard, EntryEditor, Generator, Settings,
-                       DriveSyncPanel, SyncButton, Icon, Toast
+                       DriveSyncPanel, BiometricPanel, SyncButton, TotpCode, Icon, Toast
 public/                manifest, icon, service worker, OAuth callback page
 ```
 
@@ -121,6 +129,6 @@ public/                manifest, icon, service worker, OAuth callback page
 - **Passkeys.** A web page can't register as the OS passkey provider. Stored passkeys are kept safely and can be exported, but using them to sign in needs a native shell (an Android Credential Manager provider, or an iOS AuthenticationServices extension). Wrapping this app with **Capacitor** is the natural path.
 - **Sync conflicts are resolved per item, newest edit wins.** If two devices edit the *same* item before syncing, the older edit is lost. Drive writes aren't conditional either, so two devices syncing in the same second could drop one side's change until it syncs again. That's rare for one person.
 - Tombstones are kept forever. They're tiny (id + timestamp), but could be pruned after a few months.
-- **No fingerprint / Face ID unlock or 2FA codes yet.**
+- **2FA setup is by key, not QR scan.** Copy the setup key or `otpauth://` link the site offers (usually "can't scan the code?").
 - Consider **Argon2id** (via WASM) instead of PBKDF2 for stronger master-password hardening.
 - There's no "forgot master password" reset. By design, a vault can't be recovered without its password.

@@ -7,6 +7,7 @@
   import { toast } from '../lib/toast.svelte';
   import type { Entry, EntryKind, FieldDef } from '../lib/types';
   import Icon from './Icon.svelte';
+  import { parseTotp } from '../lib/totp';
 
   let { entry, onclose }: { entry: Entry; onclose: () => void } = $props();
 
@@ -144,6 +145,9 @@
               </button>
             </div>
           </div>
+          {#if f.key === 'totp' && getField(draft, 'totp').trim() && !parseTotp(getField(draft, 'totp'))}
+            <p class="hint">Not a valid authenticator key. Paste the setup key (letters A–Z and 2–7) or an otpauth:// link.</p>
+          {/if}
         </div>
       {/each}
 
@@ -244,6 +248,12 @@
     top: 2px;
     right: 2px;
     display: flex;
+  }
+
+  .hint {
+    margin: 0;
+    color: #f59e0b;
+    font-size: 0.82rem;
   }
 
   .custom {

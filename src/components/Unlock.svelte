@@ -26,6 +26,19 @@
       master = confirm = '';
     }
   }
+
+  async function biometricUnlock() {
+    error = '';
+    busy = true;
+    try {
+      await vault.unlockWithBiometric();
+    } catch (err) {
+      // NotAllowedError = the user dismissed the system prompt (or it timed out).
+      error = (err as Error).name === 'NotAllowedError' ? 'Cancelled. Try again or use your master password.' : (err as Error).message;
+    } finally {
+      busy = false;
+    }
+  }
 </script>
 
 <div class="wrap">
@@ -35,10 +48,19 @@
     <p class="muted">
       {#if creating}
         Create a master password. It encrypts your vault on this device and <strong>cannot be recovered</strong>.
+      {:else if vault.biometric}
+        Unlock with your fingerprint or face, or with your master password.
       {:else}
         Enter your master password to unlock your vault.
       {/if}
     </p>
+
+    {#if !creating && vault.biometric}
+      <button type="button" class="btn btn-primary bio" onclick={biometricUnlock} disabled={busy}>
+        <Icon name="fingerprint" size={22} /> Unlock with fingerprint / Face ID
+      </button>
+      <div class="or"><span>or</span></div>
+    {/if}
 
     <!-- svelte-ignore a11y_autofocus -->
     <input
@@ -47,7 +69,7 @@
       placeholder="Master password"
       autocomplete={creating ? 'new-password' : 'current-password'}
       bind:value={master}
-      autofocus
+      autofocus={!vault.biometric}
     />
     {#if creating}
       <input
@@ -61,14 +83,32 @@
 
     {#if error}<p class="error">{error}</p>{/if}
 
-    <button class="btn btn-primary" disabled={busy || !master}>
+    <button class="btn" class:btn-primary={!vault.biometric || creating} disabled={busy || !master}>
       <Icon name="lock" size={18} />
-      {busy ? 'Deriving key…' : creating ? 'Create vault' : 'Unlock'}
+      {busy ? 'Unlocking…' : creating ? 'Create vault' : 'Unlock with password'}
     </button>
   </form>
 </div>
 
 <style>
+  .bio {
+    min-height: 52px;
+    font-size: 1rem;
+  }
+  .or {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    color: var(--muted);
+    font-size: 0.8rem;
+  }
+  .or::before,
+  .or::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+  }
   .wrap {
     display: grid;
     place-items: center;

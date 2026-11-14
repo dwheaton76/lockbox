@@ -39,15 +39,32 @@ export function toB64Url(bytes: Uint8Array): string {
   return toB64(bytes).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 }
 
-export async function deriveKey(password: string, salt: Bytes, iterations = PBKDF2_ITERATIONS): Promise<CryptoKey> {
+/**
+ * `extractable` is only set for the live vault key, so it can be wrapped for biometric
+ * unlock. (Anything able to run code on the page could decrypt the vault anyway.)
+ */
+export async function deriveKey(
+  password: string,
+  salt: Bytes,
+  iterations = PBKDF2_ITERATIONS,
+  extractable = false,
+): Promise<CryptoKey> {
   const base = await crypto.subtle.importKey('raw', encoder.encode(password), 'PBKDF2', false, ['deriveKey']);
   return crypto.subtle.deriveKey(
     { name: 'PBKDF2', salt, iterations, hash: 'SHA-256' },
     base,
     { name: 'AES-GCM', length: 256 },
-    false,
+    extractable,
     ['encrypt', 'decrypt'],
   );
+}
+
+export async function exportRawKey(key: CryptoKey): Promise<Bytes> {
+  return new Uint8Array(await crypto.subtle.exportKey('raw', key));
+}
+
+export function importRawKey(raw: Bytes): Promise<CryptoKey> {
+  return crypto.subtle.importKey('raw', raw, { name: 'AES-GCM', length: 256 }, true, ['encrypt', 'decrypt']);
 }
 
 export async function seal(key: CryptoKey, value: unknown): Promise<Sealed> {

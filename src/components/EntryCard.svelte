@@ -1,10 +1,11 @@
 <script lang="ts">
   import { vault } from '../lib/vault.svelte';
-  import { KINDS, getField, subtitleOf } from '../lib/kinds';
+  import { KINDS, getField, subtitleOf, totpSecretOf } from '../lib/kinds';
   import { copy } from '../lib/clipboard';
   import { toast } from '../lib/toast.svelte';
   import type { Entry, FieldDef } from '../lib/types';
   import Icon from './Icon.svelte';
+  import TotpCode from './TotpCode.svelte';
 
   let { entry, onedit }: { entry: Entry; onedit: () => void } = $props();
 
@@ -14,6 +15,7 @@
   const kind = $derived(KINDS[entry.kind]);
   // Schema fields and custom fields share one row shape for rendering.
   type Row = { id: string; label: string; value: string } & Pick<FieldDef, 'secret' | 'mono' | 'multiline' | 'type'>;
+  const totpSecret = $derived(totpSecretOf(entry));
   const rows = $derived<Row[]>([
     ...kind.fields.map((f) => ({ ...f, id: f.key, value: getField(entry, f.key) })),
     ...entry.custom.map((f) => ({ ...f, label: f.label || 'Custom field', mono: f.secret })),
@@ -63,6 +65,7 @@
 
   {#if open}
     <div class="body">
+      {#if totpSecret}<TotpCode secret={totpSecret} />{/if}
       {#each rows as row (row.id)}
         {@const link = linkFor(row)}
         <div class="field">

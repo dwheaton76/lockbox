@@ -1,7 +1,26 @@
 // Schema for each entry kind. Cards, the editor and search are all driven from this table,
 // so adding a new kind (e.g. SSH keys, secure notes) is mostly a matter of adding a row here.
 import type { IconName } from './icons';
+import { parseTotp } from './totp';
 import type { CustomField, Entry, EntryKind, FieldDef } from './types';
+
+const TOTP_FIELD: FieldDef = {
+  key: 'totp',
+  label: '2FA secret (authenticator key)',
+  secret: true,
+  mono: true,
+  placeholder: 'Base32 key or otpauth:// link',
+};
+
+/** Custom-field labels that likely hold a TOTP secret (e.g. from older imports). */
+const TOTP_LABEL = /\b(totp|2fa|otp|one[- ]time|authenticator)\b/i;
+
+/** The entry's 2FA secret: its own field, or a custom field that looks like one. */
+export function totpSecretOf(entry: Entry): string {
+  const own = getField(entry, 'totp').trim();
+  if (own) return own;
+  return entry.custom.find((f) => TOTP_LABEL.test(f.label) && parseTotp(f.value))?.value ?? '';
+}
 
 interface KindDef {
   label: string;
@@ -25,6 +44,7 @@ export const KINDS: Record<EntryKind, KindDef> = {
       { key: 'username', label: 'Username', placeholder: 'you@example.com' },
       { key: 'password', label: 'Password', secret: true, mono: true, generator: 'password' },
       { key: 'url', label: 'Website', type: 'url', placeholder: 'https://example.com' },
+      TOTP_FIELD,
     ],
   },
   account: {
@@ -44,6 +64,7 @@ export const KINDS: Record<EntryKind, KindDef> = {
       { key: 'pin', label: 'PIN', secret: true, mono: true },
       { key: 'url', label: 'Website', type: 'url', placeholder: 'https://example.com' },
       { key: 'securityQA', label: 'Security questions & answers', secret: true, multiline: true },
+      TOTP_FIELD,
     ],
   },
   passkey: {

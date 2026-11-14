@@ -25,6 +25,8 @@ export interface PasswordEntry extends BaseEntry {
   username: string;
   password: string;
   url: string;
+  /** TOTP secret (base32 or otpauth:// URI). Absent on entries saved before 2FA support. */
+  totp?: string;
 }
 
 export interface AccountEntry extends BaseEntry {
@@ -39,6 +41,7 @@ export interface AccountEntry extends BaseEntry {
   pin: string;
   url: string;
   securityQA: string;
+  totp?: string;
 }
 
 export interface PasskeyEntry extends BaseEntry {

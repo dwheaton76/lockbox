@@ -57,7 +57,8 @@ describe('importCsv', () => {
     expect(skipped).toBe(1);
     expect(entries).toHaveLength(1);
     expect(entries[0]).toMatchObject({ title: 'Jira', username: 'alice', password: 'pw1', favorite: true, tags: ['Work'] });
-    expect(entries[0].custom).toEqual([expect.objectContaining({ label: 'TOTP secret', value: 'JBSWY3DPEHPK3PXP', secret: true })]);
+    expect(entries[0].totp).toBe('JBSWY3DPEHPK3PXP');
+    expect(entries[0].custom).toEqual([]);
   });
 
   it('reads Safari / iCloud exports', () => {

@@ -1,6 +1,24 @@
 // Reactive vault store. The whole vault is encrypted as a single blob, so titles,
 // URLs and usernames are never stored in plaintext either.
-import { PBKDF2_ITERATIONS, deriveKey, fromB64, open, randomBytes, seal, toB64, type KdfParams, type Sealed } from './crypto';
+import {
+  PBKDF2_ITERATIONS,
+  deriveKey,
+  exportRawKey,
+  fromB64,
+  importRawKey,
+  open,
+  randomBytes,
+  seal,
+  toB64,
+  type KdfParams,
+  type Sealed,
+} from './crypto';
+import {
+  biometricRecord,
+  disableBiometric as forgetBiometric,
+  enableBiometric as registerBiometric,
+  unwrapWithBiometric,
+} from './biometric';
 import { idbGet, idbSet, idbSetMany } from './db';
 import { backupKey, createBackup, openVaultFile, parseBackup, type BackupFile } from './backup';
 import { mergeEntries, type MergeResult } from './merge';
@@ -34,17 +52,24 @@ export class Vault {
   /** Bumped on every user change (not on sync), so sync can push edits. */
   revision = $state(0);
   #tombstones: Tombstones = {};
+  /** Fingerprint / Face ID unlock is set up on this device. */
+  biometric = $state(false);
   #key: CryptoKey | null = null;
   #meta: VaultMeta | null = null;
 
   async init() {
-    this.status = (await idbGet<VaultMeta>('meta')) ? 'locked' : 'new';
+    const meta = await idbGet<VaultMeta>('meta');
+    this.status = meta ? 'locked' : 'new';
+    const record = await biometricRecord();
+    // A record for an older master password can't unlock this vault any more.
+    if (record && record.vaultSalt !== meta?.salt) await forgetBiometric();
+    this.biometric = Boolean(record && record.vaultSalt === meta?.salt);
   }
 
   async create(master: string) {
     requestPersistence();
     const meta = newMeta();
-    const key = await deriveKey(master, fromB64(meta.salt), meta.iterations);
+    const key = await deriveKey(master, fromB64(meta.salt), meta.iterations, true);
     await idbSetMany({ vault: await seal(key, { entries: [], tombstones: {} }), meta });
     this.#key = key;
     this.#meta = meta;
@@ -55,9 +80,25 @@ export class Vault {
 
   /** Resolves false on a wrong master password. */
   async unlock(master: string): Promise<boolean> {
-    const [meta, sealed] = await Promise.all([idbGet<VaultMeta>('meta'), idbGet<Sealed>('vault')]);
-    if (!meta || !sealed) throw new Error('Vault data is missing.');
-    const key = await deriveKey(master, fromB64(meta.salt), meta.iterations);
+    const meta = await idbGet<VaultMeta>('meta');
+    if (!meta) throw new Error('Vault data is missing.');
+    return this.#openWith(await deriveKey(master, fromB64(meta.salt), meta.iterations, true), meta);
+  }
+
+  /** Unlocks with fingerprint / Face ID. Throws with a user-facing message on failure. */
+  async unlockWithBiometric(): Promise<void> {
+    const [meta, record] = await Promise.all([idbGet<VaultMeta>('meta'), biometricRecord()]);
+    if (!meta || !record || record.vaultSalt !== meta.salt) {
+      await this.disableBiometric();
+      throw new Error('Fingerprint / Face ID unlock needs to be set up again. Unlock with your master password.');
+    }
+    const key = await importRawKey(await unwrapWithBiometric(record));
+    if (!(await this.#openWith(key, meta))) throw new Error("Fingerprint / Face ID unlock didn't work. Unlock with your master password.");
+  }
+
+  async #openWith(key: CryptoKey, meta: VaultMeta): Promise<boolean> {
+    const sealed = await idbGet<Sealed>('vault');
+    if (!sealed) throw new Error('Vault data is missing.');
     let data: VaultData;
     try {
       data = toVaultData(await open(key, sealed));
@@ -71,6 +112,18 @@ export class Vault {
     this.status = 'unlocked';
     requestPersistence();
     return true;
+  }
+
+  /** Turns on fingerprint / Face ID unlock for this device (shows the system prompt). */
+  async enableBiometric(): Promise<void> {
+    if (!this.#key || !this.#meta) throw new Error('Vault is locked.');
+    await registerBiometric(await exportRawKey(this.#key), this.#meta.salt);
+    this.biometric = true;
+  }
+
+  async disableBiometric(): Promise<void> {
+    await forgetBiometric();
+    this.biometric = false;
   }
 
   lock() {
@@ -96,10 +149,12 @@ export class Vault {
       return false;
     }
     const meta = newMeta();
-    const key = await deriveKey(next, fromB64(meta.salt), meta.iterations);
+    const key = await deriveKey(next, fromB64(meta.salt), meta.iterations, true);
     await idbSetMany({ vault: await seal(key, this.#data()), meta });
     this.#key = key;
     this.#meta = meta;
+    // The wrapped key belongs to the old password; re-enabling needs a new biometric prompt.
+    await this.disableBiometric();
     this.revision++; // other devices pick up the new password on next sync
     return true;
   }
@@ -185,12 +240,13 @@ export class Vault {
    */
   async adoptRemotePassword(password: string, file: BackupFile): Promise<boolean> {
     if (!this.#key) throw new Error('Vault is locked.');
-    const key = await backupKey(file, password);
+    const key = await backupKey(file, password, true);
     if (!(await openVaultFile(file, key))) return false;
     const meta: VaultMeta = { version: 1, salt: file.kdf.salt, iterations: file.kdf.iterations };
     await idbSetMany({ vault: await seal(key, this.#data()), meta });
     this.#key = key;
     this.#meta = meta;
+    await this.disableBiometric(); // wrapped key belonged to the old password
     return true;
   }
 
